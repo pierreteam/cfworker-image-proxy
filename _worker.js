@@ -75,6 +75,9 @@ export default {
  */
 function routing(url, env) {
 	let target = Routes?.[url.hostname]; // 路由
+	if (!target && yes(env.EnablePrefixRoute))
+		target = nextSegment(url.hostname, "."); // 前缀路由
+
 	if (target && Targets[target])
 		return [Targets[target], `${url.protocol}//${url.host}`]; // 必须遵循路由
 
@@ -153,9 +156,9 @@ function yes(value) {
  * @param {string} str - 源字符串
  * @returns 跳过前缀路径分隔符后的字符串
  */
-function skipSlash(str) {
+function skipSlash(str, char = "/") {
 	let i = 0;
-	for (; i < str.length && str[i] === "/"; i++);
+	for (; i < str.length && str[i] === char; i++);
 	return str.slice(i);
 }
 
@@ -164,9 +167,9 @@ function skipSlash(str) {
  * @param {string} str - 源字符串
  * @returns {[string, string]} [首段路径, 剩余的字符串]
  */
-function nextSegment(str) {
+function nextSegment(str, char = "/") {
 	let i = 0;
-	for (; i < str.length && str[i] !== "/"; i++);
+	for (; i < str.length && str[i] !== char; i++);
 	return [str.slice(0, i), str.slice(i)];
 }
 
