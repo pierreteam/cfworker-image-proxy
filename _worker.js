@@ -45,7 +45,6 @@ export default {
 			if (!pathname)
 				return new Response("Not Found Auth Service", { status: 404 });
 
-			console.log(`${pathname}${url.search}`);
 			return await proxy(`${pathname}${url.search}`, request);
 		}
 
