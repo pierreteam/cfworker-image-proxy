@@ -1,5 +1,16 @@
-// 默认目标
-const TargetURL = "https://registry-1.docker.io";
+const Targets = {
+	__proto__: null, // 防止原型链查找
+	hub: "https://registry-1.docker.io",
+	ghcr: "https://ghcr.io",
+	k8s: "https://registry.k8s.io",
+	quay: "https://quay.io",
+	nvcr: "https://nvcr.io",
+};
+
+const Routes = {
+	__proto__: null,
+	// "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
+};
 
 // 本节点的网址；如：https://XXXXXX.worker.dev
 // 留空自动获取入站域名；普通用户留空就行；
@@ -8,25 +19,39 @@ const BaseURL = "";
 
 export default {
 	/**
+	 * 应用入口
 	 * @param {Request} request
-	 * @param {Object} env
-	 * @return {Promise<Response>}
+	 * @param {*} env
+	 * @returns
 	 */
 	async fetch(request, env) {
 		const url = new URL(request.url);
 
 		let [segment, pathname] = nextSegment(skipSlash(url.pathname));
 
-		if (segment === "token") {
-			pathname = skipSlash(pathname);
-			if (!pathname)
-				return new Response("Invalid Auth Service", { status: 400 });
+		if (segment !== "v2") {
+			return new Response("Not Found", { status: 404 });
+		}
 
-			pathname = decodeURIComponent(pathname);
+		let target = env.Target && Targets[env.Target.toLowerCase()]; // 切换预设
+		target = target || env.Target; // 自定义
+		target = target || Targets.hub; // 默认
+
+		[segment, pathname] = nextSegment(skipSlash(pathname));
+		if (segment === "auth") {
+			pathname = skipSlash(pathname);
+
+			pathname = pathname
+				? decodeURIComponent(pathname)
+				: await findAuthService(target);
+
+			if (!pathname)
+				return new Response("Not Found Auth Service", { status: 404 });
+
+			console.log(`${pathname}${url.search}`);
 			return await proxy(`${pathname}${url.search}`, request);
 		}
 
-		const target = env.TargetURL || TargetURL;
 		let respone = await proxy(`${target}${url.pathname}${url.search}`, request);
 		let headers = respone.headers;
 
@@ -34,7 +59,7 @@ export default {
 			respone = await fetch(headers.get("location"), request);
 
 		const key = "www-authenticate";
-		if (respone.headers.has(key)) {
+		if (!yes(env.DirectAuth) && respone.headers.has(key)) {
 			respone = new Response(respone.body, respone);
 			headers = respone.headers;
 
@@ -62,69 +87,60 @@ async function proxy(target, request) {
 		headers: headers,
 		method: request.method,
 		body: request.body,
+		redirect: "follow", // 自动重定向
+	});
+}
+
+/**
+ * 获取认证服务
+ * @param {string} target
+ * @returns
+ */
+async function findAuthService(target) {
+	const resp = await fetch(`${target}/v2/`, {
+		method: "GET",
 		redirect: "follow",
 	});
+	const key = "www-authenticate";
+	if (!resp.headers.has(key)) return;
+
+	const [, params] = parseValueAndParams(resp.headers.get(key), "realm");
+	return params?.realm;
 }
 
 /**
  * 转换 `WWW-Authenticate` 头
  * @param {string} input - 待转换字符串
  * @param {string} realmBase - realm 基础地址
- * @returns {string} 转换后的字符串
+ * @returns 转换后的字符串
  */
 function transformWWWAuth(input, realmBase) {
 	const [value, params] = parseValueAndParams(input);
 	if (value.toLowerCase() !== "bearer" || !params || !params.realm)
 		return input;
 
-	let realm = params.realm || "";
-	if (realm.startsWith(`"`)) realm = realm.slice(1, -1);
-
-	let out = `Bearer realm="${realmBase}/token/${encodeURIComponent(realm)}"`;
+	let out = `Bearer realm="${realmBase}/v2/auth/${encodeURIComponent(params.realm)}"`;
 	for (const key in params) {
 		if (key === "realm") continue;
-		out += `,${key}=${params[key]}`;
+		out += `,${key}="${params[key]}"`;
 	}
 	return out;
-}
-
-/**
- * 解析值和参数
- * @param {string} input - 待解析字符串
- * @return {[string | null, Object.<string, string> | null]} [值, 参数]
- */
-function parseValueAndParams(input) {
-	let [value, s] = nextToken(input);
-	if (!value) return [null, null];
-
-	/** @type {Object.<string, string> | null} */
-	const params = Object.create(null);
-	let pkey;
-	let pval;
-	for (;;) {
-		[pkey, s] = nextToken(skipSpace(s));
-		if (!pkey || !s.startsWith("=")) break;
-
-		[pval, s] = nextTokenQuoted(s.slice(1));
-		if (!pval) break;
-
-		params[pkey.toLowerCase()] = pval;
-
-		s = skipSpace(s);
-		if (!s.startsWith(",")) break;
-		s = s.slice(1);
-	}
-	return [value, params];
 }
 
 /*********************************************************************/
 // 辅助函数
 
+function yes(value) {
+	if (!value) return false;
+	const val = value.toLowerCase();
+	return val && val !== "no" && val !== "false" && val !== "0";
+}
+
 // 路径解析
 /**
  * 跳过前缀路径分隔符
  * @param {string} str - 源字符串
- * @returns {string} 跳过前缀路径分隔符后的字符串
+ * @returns 跳过前缀路径分隔符后的字符串
  */
 function skipSlash(str) {
 	let i = 0;
@@ -167,9 +183,40 @@ const OctetTypes = (() => {
 })();
 
 /**
+ * 解析值和参数
+ * @param {string} input - 待解析字符串
+ * @return {[string | null, Object.<string, string> | null]} [值, 参数]
+ */
+export function parseValueAndParams(input, key = null) {
+	let [value, s] = nextToken(input);
+	if (!value) return [null, null];
+
+	/** @type {Object.<string, string> | null} */
+	const params = Object.create(null);
+	let pkey;
+	let pval;
+	for (;;) {
+		[pkey, s] = nextToken(skipSpace(s));
+		if (!pkey || !s.startsWith("=")) break;
+
+		[pval, s] = nextTokenQuoted(s.slice(1));
+		if (!pval) break;
+
+		pkey = pkey.toLowerCase();
+		params[pkey] = pval;
+		if (key && key === pkey) break;
+
+		s = skipSpace(s);
+		if (!s.startsWith(",")) break;
+		s = s.slice(1);
+	}
+	return [value, params];
+}
+
+/**
  * 跳过空白字符
  * @param {string} str - 源字符串
- * @return {string} 跳过空白字符后的字符串
+ * @return 跳过空白字符后的字符串
  */
 function skipSpace(str) {
 	let i = 0;
@@ -202,11 +249,10 @@ function nextToken(str) {
 function nextTokenQuoted(str) {
 	if (!str.startsWith('"')) return nextToken(str);
 
-	let idx = 0;
-	do idx = str.indexOf('"', idx + 1);
-	while (idx > 0 && str[idx - 1] === "\\");
+	let idx = 1;
+	do idx = str.indexOf('"', idx);
+	while (idx >= 1 && str[idx - 1] === "\\");
 
-	if (idx <= 0) return ["", ""];
-	idx += 1;
-	return [str.slice(0, idx), str.slice(idx)];
+	if (idx >= 1) return [str.slice(1, idx), str.slice(idx + 1)];
+	return ["", ""];
 }
