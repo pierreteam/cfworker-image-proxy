@@ -1,5 +1,5 @@
 const Targets = {
-	__proto__: null, // 防止原型链查找
+	__proto__: null, // 避免原型链查找
 	hub: "https://registry-1.docker.io",
 	ghcr: "https://ghcr.io",
 	k8s: "https://registry.k8s.io",
@@ -7,9 +7,10 @@ const Targets = {
 	nvcr: "https://nvcr.io",
 };
 
+// 路由；目前只支持 Hostname 路由，不支持端口和协议路由
+// 格式: "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
 const Routes = {
-	__proto__: null,
-	// "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
+	__proto__: null, // 避免原型链查找
 };
 
 // 本节点的网址；如：https://XXXXXX.worker.dev
@@ -29,13 +30,9 @@ export default {
 
 		let [segment, pathname] = nextSegment(skipSlash(url.pathname));
 
-		if (segment !== "v2") {
-			return new Response("Not Found", { status: 404 });
-		}
+		if (segment !== "v2") return new Response("Not Found", { status: 404 });
 
-		let target = env.Target && Targets[env.Target.toLowerCase()]; // 切换预设
-		target = target || env.Target; // 自定义
-		target = target || Targets.hub; // 默认
+		const [target, baseURL] = routing(url, env);
 
 		[segment, pathname] = nextSegment(skipSlash(pathname));
 		if (segment === "auth") {
@@ -63,8 +60,6 @@ export default {
 			respone = new Response(respone.body, respone);
 			headers = respone.headers;
 
-			const baseURL = env.BaseURL || BaseURL || `${url.protocol}//${url.host}`;
-
 			const header = transformWWWAuth(headers.get(key), baseURL);
 			header ? headers.set(key, header) : headers.delete(key);
 		}
@@ -72,6 +67,22 @@ export default {
 		return respone;
 	},
 };
+
+/**
+ * 路由决策
+ * @param {URL} url
+ * @param {*} env
+ */
+function routing(url, env) {
+	let target = Routes?.[url.hostname]; // 路由
+	if (target && Targets[target])
+		return [Targets[target], `${url.protocol}//${url.host}`]; // 必须遵循路由
+
+	target = env.Target && Targets[env.Target.toLowerCase()]; // 切换预设
+	target = target || env.Target; // 自定义
+	target = target || Targets.hub; // 默认
+	return [target, env.BaseURL || BaseURL || `${url.protocol}//${url.host}`];
+}
 
 /**
  * 发起代理请求
