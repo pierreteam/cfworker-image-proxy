@@ -1,0 +1,10 @@
+{
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev --ip 0.0.0.0 _worker.js"
+	},
+	"devDependencies": {
+		"wrangler": "^3.0.0"
+	}
+}
