@@ -75,7 +75,7 @@ export default {
 function routing(url, env) {
 	let target = Routes?.[url.hostname]; // 配置路由
 	if (!target && yes(env.EnablePrefixRoute))
-		target = nextSegment(url.hostname, "."); // 前缀路由
+		target = nextSegment(url.hostname, ".")[0]; // 前缀路由
 
 	if (target && Targets[target])
 		return [Targets[target], `${url.protocol}//${url.host}`]; // 必须遵循路由
