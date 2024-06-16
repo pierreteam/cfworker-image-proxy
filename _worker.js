@@ -2,7 +2,8 @@
 const TargetURL = "https://registry-1.docker.io";
 
 // 本节点的网址；如：https://XXXXXX.worker.dev
-// 留空自动获取入站域名
+// 留空自动获取入站域名；普通用户留空就行；
+// 二次开发远程调试的话；需要填写（远程调试时自动获取的域名的远程临时Worker的地址）
 const BaseURL = "";
 
 export default {
