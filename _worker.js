@@ -85,7 +85,7 @@ function routing(url, env) {
 }
 
 /**
- * 发起代理请求
+ * 代理转发
  * @param {string} target
  * @param {Request} request
  * @returns
