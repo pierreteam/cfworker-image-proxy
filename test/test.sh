@@ -9,7 +9,7 @@
 
 # Host=https://gcr.io
 
-Host=http://host.docker.internal:8787
+Host=http://host.docker.internal:5000
 
 url="$Host/v2/"
 echo "==============================================================="
