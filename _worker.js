@@ -55,7 +55,7 @@ export default {
 			respone = await fetch(headers.get("location"), request);
 
 		const key = "www-authenticate";
-		if (yes(env.EnableProxyAuth) && respone.headers.has(key)) {
+		if (!yes(env.DisableProxyAuth) && respone.headers.has(key)) {
 			respone = new Response(respone.body, respone);
 			headers = respone.headers;
 
@@ -74,7 +74,7 @@ export default {
  */
 function routing(url, env) {
 	let target = Routes?.[url.hostname]; // 配置路由
-	if (!target && yes(env.EnablePrefixRoute))
+	if (!target && !yes(env.DisablePrefixRoute))
 		target = nextSegment(url.hostname, ".")[0]; // 前缀路由
 
 	if (target && Targets[target])
