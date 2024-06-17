@@ -4,12 +4,12 @@
 # Host=https://registry-1.docker.io
 # Host=https://registry.k8s.io
 # Host=https://ghcr.io
-Host=https://nvcr.io
+# Host=https://nvcr.io
 # Host=https://quay.io
 
 # Host=https://gcr.io
 
-# Host=http://host.docker.internal:8787
+Host=http://host.docker.internal:8888
 
 url="$Host/v2/"
 echo "==============================================================="
@@ -30,7 +30,7 @@ echo "==============================================================="
 echo
 [ -z "$realm" ] && echo "未发现授权中心，中止测试" && exit 1
 
-# exit 0 # 测试授权开关
+exit 0 # 测试授权开关
 
 ###############################################################################################################
 # scope="repository:ollama-webui/ollama-webui:pull"
