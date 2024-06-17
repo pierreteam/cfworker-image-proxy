@@ -110,11 +110,11 @@ async function proxy(input, request) {
 
 /**
  * 获取认证服务
- * @param {string} targetURL
+ * @param {string} target
  * @returns
  */
-async function findAuthService(targetURL) {
-	const resp = await fetch(`${targetURL}/v2/`, {
+async function findAuthService(target) {
+	const resp = await fetch(`${target}/v2/`, {
 		method: "GET",
 		redirect: "follow",
 	});
