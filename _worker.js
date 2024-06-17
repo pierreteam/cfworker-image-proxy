@@ -32,9 +32,12 @@ export default {
 
 		if (segment !== "v2") return new Response("Not Found", { status: 404 });
 
+		// 路由决策
 		const [target, baseURL] = routing(url, env);
 
 		[segment, pathname] = nextSegment(skipSlash(pathname));
+
+		// 代理转发授权请求
 		if (segment === "auth") {
 			pathname = skipSlash(pathname);
 
@@ -48,12 +51,15 @@ export default {
 			return await proxy(`${pathname}${url.search}`, request);
 		}
 
+		// 代理转发资源请求
 		let respone = await proxy(`${target}${url.pathname}${url.search}`, request);
 		let headers = respone.headers;
 
+		// 手动重定向；proxy 中使用了 follow 重定向; 理论上不会进入这个逻辑；写上安全些
 		while (headers.has("location"))
 			respone = await fetch(headers.get("location"), request);
 
+		// 改写授权中心
 		const key = "www-authenticate";
 		if (!yes(env.DisableProxyAuth) && respone.headers.has(key)) {
 			respone = new Response(respone.body, respone);
@@ -93,11 +99,8 @@ function routing(url, env) {
  * @returns
  */
 async function proxy(target, request) {
-	const url = new URL(target);
-	const headers = new Headers(request.headers);
-	headers.set("host", url.host);
-	return await fetch(url, {
-		headers: headers,
+	return await fetch(target, {
+		headers: request.headers,
 		method: request.method,
 		body: request.body,
 		redirect: "follow", // 自动重定向
