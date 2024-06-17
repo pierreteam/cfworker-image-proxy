@@ -30,10 +30,11 @@ export default {
 
 		let [segment, pathname] = nextSegment(skipSlash(url.pathname));
 
-		if (segment !== "v2") return new Response("Not Found", { status: 404 });
+		if (segment !== "v2")
+			return new Response("Not Found Service", { status: 404 });
 
 		// 路由决策
-		const [target, baseURL] = routing(url, env);
+		let [target, baseURL] = routing(url, env);
 
 		[segment, pathname] = nextSegment(skipSlash(pathname));
 
@@ -41,14 +42,14 @@ export default {
 		if (segment === "auth") {
 			pathname = skipSlash(pathname);
 
-			pathname = pathname
+			target = pathname
 				? decodeURIComponent(pathname)
 				: await findAuthService(target);
 
-			if (!pathname)
+			if (!target)
 				return new Response("Not Found Auth Service", { status: 404 });
 
-			return await proxy(`${pathname}${url.search}`, request);
+			return await proxy(`${target}${url.search}`, request);
 		}
 
 		// 代理转发资源请求
@@ -94,12 +95,12 @@ function routing(url, env) {
 
 /**
  * 代理转发
- * @param {string} target
+ * @param {string|URL} input
  * @param {Request} request
  * @returns
  */
-async function proxy(target, request) {
-	return await fetch(target, {
+async function proxy(input, request) {
+	return await fetch(input, {
 		headers: request.headers,
 		method: request.method,
 		body: request.body,
@@ -109,11 +110,11 @@ async function proxy(target, request) {
 
 /**
  * 获取认证服务
- * @param {string} target
+ * @param {string} targetURL
  * @returns
  */
-async function findAuthService(target) {
-	const resp = await fetch(`${target}/v2/`, {
+async function findAuthService(targetURL) {
+	const resp = await fetch(`${targetURL}/v2/`, {
 		method: "GET",
 		redirect: "follow",
 	});
