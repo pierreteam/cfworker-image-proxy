@@ -34,10 +34,9 @@ export default {
 			return new Response("Not Found Service", { status: 404 });
 
 		// 路由决策
-		const [target, baseURL] = routing(url, env);
+		let [target, baseURL] = routing(url, env);
 
 		[segment, pathname] = nextSegment(skipSlash(pathname));
-
 		if (segment === "auth") {
 			pathname = skipSlash(pathname);
 
@@ -63,6 +62,7 @@ export default {
 
 		// 改写授权中心
 		if (!yes(env.DisableProxyAuth) && headers.has("WWW-Authenticate")) {
+			if (!baseURL) baseURL = `${url.protocol}//${url.host}`;
 			headers = replaceAuthService(new Headers(headers), `${baseURL}/v2/auth`);
 		}
 
@@ -94,25 +94,22 @@ export default {
  * @param {*} env
  */
 function routing(url, env) {
-	const baseURL = `${url.protocol}//${url.host}`;
+	// 规则路由
 	let target = Routes?.[url.hostname];
-	if (target) {
-		// 必须遵循命中的路由规则，
-		return [Targets[target] || target, baseURL];
-	}
+	if (target) return [Targets[target] || target, null];
 
 	// 前缀路由
 	if (!yes(env.DisablePrefixRoute)) {
 		target = nextSegment(url.hostname, ".")[0];
 		target = Targets[target];
-		if (target) return [target, baseURL];
+		if (target) return [target, null];
 	}
 
 	// 无法路由
 	target = env.Target && Targets[env.Target.toLowerCase()]; // 预设
 	target = target || env.Target; // 自定义
 	target = target || Targets.hub; // 默认
-	return [target, env.BaseURL || BaseURL || baseURL];
+	return [target, env.BaseURL || BaseURL];
 }
 
 /**
@@ -163,7 +160,7 @@ function replaceAuthService(headers, realmBase) {
 			: `${prefix}"${realmBase}"`;
 	});
 	headers.set("WWW-Authenticate", header);
-	return response;
+	return headers;
 }
 
 /*********************************************************************/

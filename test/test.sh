@@ -1,24 +1,22 @@
 #!/bin/bash
 # shellcheck disable=all
 
-Host=https://registry-1.docker.io && Image=ollama/ollama
-# Host=https://registry.k8s.io && Image=external-dns/external-dns
-# Host=https://ghcr.io && Image=ollama-webui/ollama-webui
+Host=https://registry-1.docker.io && Image=ollama/ollama && Target=hub
+# Host=https://registry.k8s.io && Image=pause && version=3.6 && Target=k8s
+# Host=https://ghcr.io && Image=ollama-webui/ollama-webui && Target=ghcr
 # Host=https://nvcr.io;
 
 # Host=https://quay.io && Image=strimzi/kafka
 # Host=https://gcr.io
 
-Host=http://hub.pierre.local:5000
+Host=http://$Target.pierre.local:5000
 
-scope="repository:$Image:pull"
 echo "==============================================================="
 url="$Host/v2/"
 echo "请求: $url"
 echo "---------------------------------------------------------------"
 response=$(curl -s -i "$url")
-[ -z "$response" ] && echo "请求失败，中止测试" && exit 1
-echo "$response" | head -n 20
+echo "$response" | head -n 20 && echo "..."
 echo "---------------------------------------------------------------"
 response=$(echo "$response" | sed -n '/^www-authenticate: Bearer/I s/^www-authenticate: Bearer //Ip')
 realm=$(echo "$response" | sed -n -E 's/.*realm="([^"]+)".*/\1/p')
@@ -33,14 +31,14 @@ echo
 if [ -n "$realm" ]; then
 
     ###############################################################################################################
-    
+    scope="repository:$Image:pull"
+
     echo "==============================================================="
     url="${realm}?_a=1${service:+"&service=${service}"}${scope:+"&scope=${scope}"}"
     echo "请求: $url"
     echo "---------------------------------------------------------------"
     response=$(curl -s -i "$url" -H "Accept: application/json")
-    [ -z "$response" ] && echo "请求失败，中止测试" && exit 1
-    echo "$response" | head -n 20
+    echo "$response"
     echo "==============================================================="
     echo
 
@@ -48,14 +46,16 @@ if [ -n "$realm" ]; then
     [ -z "$token" ] && echo "授权失败，中止测试" && exit 1
 fi
 
-curl -s -i "$Host/v2/$Image/manifests/latest" \
+echo "==============================================================="
+url="$Host/v2/$Image/manifests/${version:-"latest"}"
+echo "请求: $url"
+echo "---------------------------------------------------------------"
+curl -s -i "$url" \
     -H "Accept: application/json" \
     -H "Accept: application/vnd.oci.image.index.v1+json" \
     -H "Accept: application/vnd.oci.image.manifest.v1+json" \
     -H "Accept: application/vnd.docker.distribution.manifest.v1+prettyjws" \
     -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
     -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-    -H "Authorization: Bearer ${token}" \
-    -H "Connection: close" -o - | head -n 20
-
-    echo $token
+    ${token:+-H "Authorization: Bearer ${token}"} \
+    -H "Connection: close" -o -
