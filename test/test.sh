@@ -55,5 +55,7 @@ curl -s -i "$Host/v2/$Image/manifests/latest" \
     -H "Accept: application/vnd.docker.distribution.manifest.v1+prettyjws" \
     -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
     -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-    ${token:+-H "Authorization: Bearer ${token}"} \
+    -H "Authorization: Bearer ${token}" \
     -H "Connection: close" -o - | head -n 20
+
+    echo $token
