@@ -10,6 +10,7 @@
 # Host=https://gcr.io
 
 Host=http://host.docker.internal:5000
+Image=ollama/ollama
 
 url="$Host/v2/"
 echo "==============================================================="
@@ -30,10 +31,8 @@ echo "==============================================================="
 echo
 [ -z "$realm" ] && echo "未发现授权中心，中止测试" && exit 1
 
-exit 0 # 测试授权开关
-
 ###############################################################################################################
-# scope="repository:ollama-webui/ollama-webui:pull"
+scope="repository:$Image:pull"
 
 url="${realm}?_a=1${service:+"&service=${service}"}${scope:+"&scope=${scope}"}"
 echo "==============================================================="
@@ -42,20 +41,18 @@ echo "---------------------------------------------------------------"
 response=$(curl -s -i "$url" -H "Accept: application/json")
 [ -z "$response" ] && echo "请求失败，中止测试" && exit 1
 echo "$response" | head -n 20
-echo "---------------------------------------------------------------"
-token=$(echo "$response" | awk 'BEGIN { in_body=0 } /^\r?$/ { in_body=1; next } in_body { print }' | jq -r '.token')
-echo "Token: " "$(echo "$token" | cut -c 1-32)..."
 echo "==============================================================="
 echo
 
+token=$(echo "$response" | awk 'BEGIN { in_body=0 } /^\r?$/ { in_body=1; next } in_body { print }' | jq -r '.token')
 [ -z "$token" ] && echo "授权失败，中止测试" && exit 1
 
-# curl -s -I "$Host/v2/ollama/ollama/manifests/latest" \
-#     -H "Accept: application/json" \
-#     -H "Accept: application/vnd.oci.image.index.v1+json" \
-#     -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-#     -H "Accept: application/vnd.docker.distribution.manifest.v1+prettyjws" \
-#     -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-#     -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-#     -H "Authorization: Bearer ${token}" \
-#     -H "Connection: close" -o -
+curl -s -i "$Host/v2/$Image/manifests/latest" \
+    -H "Accept: application/json" \
+    -H "Accept: application/vnd.oci.image.index.v1+json" \
+    -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+    -H "Accept: application/vnd.docker.distribution.manifest.v1+prettyjws" \
+    -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+    -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+    -H "Authorization: Bearer ${token}" \
+    -H "Connection: close" -o - | head -n 20

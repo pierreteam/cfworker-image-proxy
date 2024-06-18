@@ -96,44 +96,51 @@ function nextTokenQuoted(str) {
 	return ["", ""];
 }
 
-/**
- * 使用正则表达式解析值和参数
- * @param {string} input - 待解析字符串
- * @return {[string | null, Object.<string, string> | null]} [值, 参数]
- */
-function parseValueAndParamsRegex(input, key = null) {
-	const regex = /(\w+)=((?:"[^"]*"|[^\s\t\r\n,])*)\s*(?:,|$)/gi;
-	const matcher = input.matchAll(regex);
-	const params = Object.create(null);
-	for (const match of matcher) {
-		const pKey = match[1].toLowerCase();
-		let pVal = match[2];
-		if (pVal.startsWith('"')) pVal = pVal.slice(1, -1);
-		params[pKey] = pVal;
-		if (key && key === pKey) break;
+function replaceAuthService(input, realmBase) {
+	let [value, params] = parseValueAndParams(input);
+	value = value || "Bearer";
+	let realm = params?.realm;
+	realm = realm ? `${realmBase}/${encodeURIComponent(realm)}` : realmBase;
+
+	let out = `${value} realm="${realm}"`;
+	if (params) {
+		for (const key in params) {
+			if (key === "realm") continue;
+			out += `,${key}="${params[key]}"`;
+		}
 	}
-	return ["Bearer", params];
+	return out;
+}
+
+function replaceAuthServiceRegex(input, realmBase) {
+	const regexp = /(realm=)(?:"([^"]*)"|([^,\s]*))/i;
+	return input.replace(regexp, (_, prefix, quoted, unquoted) => {
+		const realm = encodeURIComponent(quoted || unquoted || "");
+		return realm
+			? `${prefix}"${realmBase}/${realm}"`
+			: `${prefix}"${realmBase}"`;
+	});
 }
 
 function runBenchmark() {
 	const headers = [
 		'Bearer realm="https://example.com/v2/auth/",service="example.io",scope="repo/xxxx:latest"',
-		'Digest realm="https://example.com/v2/auth/",qop="auth",nonce="abc123",opaque="xyz789"',
+		'Digest realm="",qop="auth",nonce="abc123",opaque="xyz789"',
 		'Basic realm="Access to the staging site", charset="UTF-8"',
 		'Digest username="Mufasa", realm="testrealm@host.com", uri="/dir/index.html", response="1949323742"',
 	];
 
 	// 打印解析结果
 	for (const header of headers) {
-		console.log(parseValueAndParams(header));
-		console.log(parseValueAndParamsRegex(header));
+		console.log(replaceAuthService(header, "https://example.com/v2/auth"));
+		console.log(replaceAuthServiceRegex(header, "https://example.com/v2/auth"));
 	}
 
 	// 测试解析方法1
 	const start1 = performance.now();
 	for (let i = 0; i < 100000; i++) {
 		for (const header of headers) {
-			parseValueAndParams(header);
+			replaceAuthService(header, "");
 		}
 	}
 	const end1 = performance.now();
@@ -143,7 +150,7 @@ function runBenchmark() {
 	const start2 = performance.now();
 	for (let i = 0; i < 100000; i++) {
 		for (const header of headers) {
-			parseValueAndParamsRegex(header);
+			replaceAuthServiceRegex(header, "");
 		}
 	}
 	const end2 = performance.now();

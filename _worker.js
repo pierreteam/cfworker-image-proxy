@@ -21,12 +21,12 @@ const BaseURL = "";
 export default {
 	/**
 	 * 应用入口
-	 * @param {Request} request
+	 * @param {Request} req
 	 * @param {*} env
 	 * @returns
 	 */
-	async fetch(request, env) {
-		const url = new URL(request.url);
+	async fetch(req, env) {
+		const url = new URL(req.url);
 
 		let [segment, pathname] = nextSegment(skipSlash(url.pathname));
 
@@ -34,43 +34,57 @@ export default {
 			return new Response("Not Found Service", { status: 404 });
 
 		// 路由决策
-		let [target, baseURL] = routing(url, env);
+		const [target, baseURL] = routing(url, env);
 
 		[segment, pathname] = nextSegment(skipSlash(pathname));
 
-		// 代理转发授权请求
 		if (segment === "auth") {
 			pathname = skipSlash(pathname);
 
-			target = pathname
-				? decodeURIComponent(pathname)
-				: await findAuthService(target);
+			// 从 URL 中获取认证服务
+			if (pathname) pathname = decodeURIComponent(pathname);
 
-			if (!target)
+			// 查找认证服务
+			if (!pathname) {
+				const resp = await forward(`${target}/v2/`);
+				pathname = findAuthService(resp.headers);
+			}
+
+			if (!pathname)
 				return new Response("Not Found Auth Service", { status: 404 });
 
-			return await proxy(`${target}${url.search}`, request);
+			// 代理转发授权请求
+			return await forward(`${pathname}${url.search}`, req);
 		}
 
 		// 代理转发资源请求
-		let respone = await proxy(`${target}${url.pathname}${url.search}`, request);
-		let headers = respone.headers;
-
-		// 手动重定向；proxy 中使用了 follow 重定向; 理论上不会进入这个逻辑；写上安全些
-		while (headers.has("location"))
-			respone = await fetch(headers.get("location"), request);
+		const resp = await forward(`${target}${url.pathname}${url.search}`, req);
+		let headers = resp.headers;
 
 		// 改写授权中心
-		const key = "www-authenticate";
-		if (!yes(env.DisableProxyAuth) && respone.headers.has(key)) {
-			respone = new Response(respone.body, respone);
-			headers = respone.headers;
-
-			const header = transformWWWAuth(headers.get(key), baseURL);
-			header ? headers.set(key, header) : headers.delete(key);
+		if (!yes(env.DisableProxyAuth) && headers.has("WWW-Authenticate")) {
+			headers = replaceAuthService(new Headers(headers), `${baseURL}/v2/auth`);
 		}
 
-		return respone;
+		if (resp.ok) {
+			if (headers === resp.headers) headers = new Headers(headers);
+			// 添加缓存控制
+			headers.append("Cache-Control", "max-age=300");
+			headers.append("Vary", "Accept");
+			headers.append("Vary", "Accept-Encoding");
+			headers.append("Vary", "Accept-Language");
+			headers.append("Vary", "Authorization");
+			headers.append("Vary", "User-Agent");
+		}
+
+		if (headers === resp.headers) return resp;
+
+		// 标头被修改，重写响应
+		return new Response(resp.body, {
+			status: resp.status,
+			statusText: resp.statusText,
+			headers,
+		});
 	},
 };
 
@@ -96,52 +110,52 @@ function routing(url, env) {
 /**
  * 代理转发
  * @param {string|URL} input
- * @param {Request} request
+ * @param {Request} req
  * @returns
  */
-async function proxy(input, request) {
+async function forward(input, req) {
+	if (!req) return await fetch(input, { redirect: "follow" });
 	return await fetch(input, {
-		headers: request.headers,
-		method: request.method,
-		body: request.body,
-		redirect: "follow", // 自动重定向
+		headers: req.headers,
+		method: req.method,
+		body: req.body,
+		redirect: "follow",
 	});
 }
 
 /**
  * 获取认证服务
- * @param {string} target
+ * @param {Headers} headers - 响应头
  * @returns
  */
-async function findAuthService(target) {
-	const resp = await fetch(`${target}/v2/`, {
-		method: "GET",
-		redirect: "follow",
-	});
-	const key = "www-authenticate";
-	if (!resp.headers.has(key)) return;
+function findAuthService(headers) {
+	const header = headers.get("WWW-Authenticate");
+	if (!header) return null;
 
-	const [, params] = parseValueAndParams(resp.headers.get(key), "realm");
-	return params?.realm;
+	const regexp = /realm=(?:"([^"]*)"|([^,\s]*))/i;
+	const match = header.match(regexp);
+	return (match && (match[1] || match[2])) || null;
 }
 
 /**
- * 转换 `WWW-Authenticate` 头
- * @param {string} input - 待转换字符串
+ * 替换认证服务
+ * @param {Headers} headers - 待修改的响应头
  * @param {string} realmBase - realm 基础地址
  * @returns 转换后的字符串
  */
-function transformWWWAuth(input, realmBase) {
-	const [value, params] = parseValueAndParams(input);
-	if (value.toLowerCase() !== "bearer" || !params || !params.realm)
-		return input;
+function replaceAuthService(headers, realmBase) {
+	let header = headers.get("WWW-Authenticate");
+	if (!header) return null;
 
-	let out = `Bearer realm="${realmBase}/v2/auth/${encodeURIComponent(params.realm)}"`;
-	for (const key in params) {
-		if (key === "realm") continue;
-		out += `,${key}="${params[key]}"`;
-	}
-	return out;
+	const regexp = /(realm=)(?:"([^"]*)"|([^,\s]*))/i;
+	header = header.replace(regexp, (_, prefix, quoted, unquoted) => {
+		const realm = encodeURIComponent(quoted || unquoted || "");
+		return realm
+			? `${prefix}"${realmBase}/${realm}"`
+			: `${prefix}"${realmBase}"`;
+	});
+	headers.set("WWW-Authenticate", header);
+	return response;
 }
 
 /*********************************************************************/
@@ -174,102 +188,4 @@ function nextSegment(str, char = "/") {
 	let i = 0;
 	for (; i < str.length && str[i] !== char; i++);
 	return [str.slice(0, i), str.slice(i)];
-}
-
-// 头部解析
-const CToken = 1 << 0;
-const CSpace = 1 << 1;
-
-const OctetTypes = (() => {
-	const types = new Uint8Array(0xff);
-	let sets = " \t\r\n";
-	for (let i = 0, c = 0; i < sets.length; i++) {
-		c = sets.charCodeAt(i);
-		if (c < 0x80) types[c] |= CSpace;
-	}
-
-	for (let i = 0x20; i < 0x7f; i++) types[i] |= CToken;
-
-	sets = ' \t"(),/:;<=>?@[]\\{}';
-	for (let i = 0, c = 0; i < sets.length; i++) {
-		c = sets.charCodeAt(i);
-		if (c < 0x80) types[c] &= ~CToken;
-	}
-
-	return types;
-})();
-
-/**
- * 解析值和参数
- * @param {string} input - 待解析字符串
- * @return {[string | null, Object.<string, string> | null]} [值, 参数]
- */
-export function parseValueAndParams(input, key = null) {
-	let [value, s] = nextToken(input);
-	if (!value) return [null, null];
-
-	/** @type {Object.<string, string> | null} */
-	const params = Object.create(null);
-	let pkey;
-	let pval;
-	for (;;) {
-		[pkey, s] = nextToken(skipSpace(s));
-		if (!pkey || !s.startsWith("=")) break;
-
-		[pval, s] = nextTokenQuoted(s.slice(1));
-		if (!pval) break;
-
-		pkey = pkey.toLowerCase();
-		params[pkey] = pval;
-		if (key && key === pkey) break;
-
-		s = skipSpace(s);
-		if (!s.startsWith(",")) break;
-		s = s.slice(1);
-	}
-	return [value, params];
-}
-
-/**
- * 跳过空白字符
- * @param {string} str - 源字符串
- * @return 跳过空白字符后的字符串
- */
-function skipSpace(str) {
-	let i = 0;
-	for (; i < str.length; i++) {
-		const c = str.charCodeAt(i);
-		if (c < 0x80 && (OctetTypes[c] & CSpace) === 0) break;
-	}
-	return str.slice(i);
-}
-
-/**
- * 获取下一个 token
- * @param {string} str - 源字符串
- * @return {[string, string]} [token, 剩余的字符串]
- */
-function nextToken(str) {
-	let i = 0;
-	for (; i < str.length; i++) {
-		const c = str.charCodeAt(i);
-		if (c < 0x80 && (OctetTypes[c] & CToken) === 0) break;
-	}
-	return [str.slice(0, i), str.slice(i)];
-}
-
-/**
- * 获取下一个 token; 可能带有引号
- * @param {string} str - 源字符串
- * @return {[string, string]} [token, 剩余的字符串]
- */
-function nextTokenQuoted(str) {
-	if (!str.startsWith('"')) return nextToken(str);
-
-	let idx = 1;
-	do idx = str.indexOf('"', idx);
-	while (idx >= 1 && str[idx - 1] === "\\");
-
-	if (idx >= 1) return [str.slice(1, idx), str.slice(idx + 1)];
-	return ["", ""];
 }
