@@ -1,21 +1,21 @@
 const Targets = {
-	__proto__: null, // 避免原型链查找
+	__proto__: null,
 	hub: "https://registry-1.docker.io",
 	ghcr: "https://ghcr.io",
 	k8s: "https://registry.k8s.io",
 	quay: "https://quay.io",
 	nvcr: "https://nvcr.io",
+
+	// 此处添加自定义预设
 };
 
-// 路由；目前只支持 Hostname 路由，不支持端口和协议路由
-// 格式: "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
 const Routes = {
-	__proto__: null, // 避免原型链查找
+	__proto__: null,
+
+	// 此处添加自定义路由；格式如下：
+	// "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
 };
 
-// 本节点的网址；如：https://XXXXXX.worker.dev
-// 留空自动获取入站域名；普通用户留空就行；
-// 二次开发远程调试的话；需要填写（远程调试时自动获取的域名的远程临时Worker的地址）
 const BaseURL = "";
 
 export default {
@@ -94,17 +94,25 @@ export default {
  * @param {*} env
  */
 function routing(url, env) {
-	let target = Routes?.[url.hostname]; // 配置路由
-	if (!target && !yes(env.DisablePrefixRoute))
-		target = nextSegment(url.hostname, ".")[0]; // 前缀路由
+	const baseURL = `${url.protocol}//${url.host}`;
+	let target = Routes?.[url.hostname];
+	if (target) {
+		// 必须遵循命中的路由规则，
+		return [Targets[target] || target, baseURL];
+	}
 
-	if (target && Targets[target])
-		return [Targets[target], `${url.protocol}//${url.host}`]; // 必须遵循路由
+	// 前缀路由
+	if (!yes(env.DisablePrefixRoute)) {
+		target = nextSegment(url.hostname, ".")[0];
+		target = Targets[target];
+		if (target) return [target, baseURL];
+	}
 
-	target = env.Target && Targets[env.Target.toLowerCase()]; // 切换预设
+	// 无法路由
+	target = env.Target && Targets[env.Target.toLowerCase()]; // 预设
 	target = target || env.Target; // 自定义
 	target = target || Targets.hub; // 默认
-	return [target, env.BaseURL || BaseURL || `${url.protocol}//${url.host}`];
+	return [target, env.BaseURL || BaseURL || baseURL];
 }
 
 /**
