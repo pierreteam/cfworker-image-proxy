@@ -5,6 +5,7 @@
 		"dev": "wrangler dev --ip 0.0.0.0 --port 5000 _worker.js"
 	},
 	"devDependencies": {
-		"wrangler": "^3.0.0"
+        "@cloudflare/workers-types": "^4.20240614.0",
+        "wrangler": "^3.61.0"
 	}
 }
