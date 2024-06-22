@@ -1,6 +1,7 @@
-/** @type {{[target: string]: string|null|undefined}}*/
+/** @type {Table} */
 const Targets = {
-    __proto__: null,
+    /** @ts-ignore */ __proto__: null,
+
     hub: "https://registry-1.docker.io",
     ghcr: "https://ghcr.io",
     k8s: "https://registry.k8s.io",
@@ -10,9 +11,9 @@ const Targets = {
     // 此处添加自定义预设
 };
 
-/** @type {{[domain: string]: string|null|undefined}}*/
+/** @type {Table} */
 const Routes = {
-    __proto__: null,
+    /** @ts-ignore */ __proto__: null,
 
     // 此处添加自定义路由；格式如下：
     // "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
@@ -48,8 +49,7 @@ export default {
             // 查找认证服务
             if (!pathname) {
                 const resp = await forward(`${target}/v2/`);
-                // @ts-ignore
-                pathname = findAuthService(resp.headers);
+                pathname = findAuthService(resp.headers) || "";
             }
 
             if (!pathname)
@@ -95,25 +95,21 @@ export default {
  * 路由决策
  * @param {URL} url
  * @param {Env} env
- * @returns {[target: string|null, baseURL: string|null]}
+ * @returns {[string|null, string|null]}
  */
 function routing(url, env) {
     // 规则路由
-    // @ts-ignore
-    let target = Routes?.[url.hostname];
-    // @ts-ignore
+    let target = Routes[url.hostname];
     if (target) return [Targets[target] || target, null];
 
     // 前缀路由
     if (!yes(env.DisablePrefixRoute)) {
         target = nextSegment(url.hostname, ".")[0];
-        // @ts-ignore
         target = Targets[target];
         if (target) return [target, null];
     }
 
     // 无法路由
-    // @ts-ignore
     target = env.Target && Targets[env.Target.toLowerCase()]; // 预设
     target = target || env.Target; // 自定义
     target = target || Targets.hub || null; // 默认
@@ -175,7 +171,7 @@ function replaceAuthService(headers, realmBase) {
 // 辅助函数
 
 /**
- * @param {string} value 
+ * @param {string|undefined} value 
  * @returns 
  */
 function yes(value) {
