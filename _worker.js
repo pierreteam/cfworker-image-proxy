@@ -60,13 +60,19 @@ export default {
         }
 
         // 代理转发资源请求
-        const resp = await forward(`${target}${url.pathname}${url.search}`, req);
+        const resp = await forward(
+            `${target}${url.pathname}${url.search}`,
+            req
+        );
         let headers = resp.headers;
 
         // 改写授权中心
         if (!yes(env.DisableProxyAuth) && headers.has("WWW-Authenticate")) {
             if (!baseURL) baseURL = `${url.protocol}//${url.host}`;
-            headers = replaceAuthService(new Headers(headers), `${baseURL}/v2/auth`);
+            headers = replaceAuthService(
+                new Headers(headers),
+                `${baseURL}/v2/auth`
+            );
         }
 
         if (resp.ok) {
@@ -171,8 +177,8 @@ function replaceAuthService(headers, realmBase) {
 // 辅助函数
 
 /**
- * @param {string|undefined} value 
- * @returns 
+ * @param {string|undefined} value
+ * @returns
  */
 function yes(value) {
     if (!value) return false;
