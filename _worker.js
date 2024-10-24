@@ -1,25 +1,14 @@
 /** @type {Table} */
-const Targets = {
-    /** @ts-ignore */ __proto__: null,
-
+const Routes = {
     hub: "https://registry-1.docker.io",
+    docker: "https://registry-1.docker.io",
     ghcr: "https://ghcr.io",
     k8s: "https://registry.k8s.io",
     quay: "https://quay.io",
     nvcr: "https://nvcr.io",
 
-    // 此处添加自定义预设
+    // 此处添加域名前缀路由
 };
-
-/** @type {Table} */
-const Routes = {
-    /** @ts-ignore */ __proto__: null,
-
-    // 此处添加自定义路由；格式如下：
-    // "你的入站域名": hub | ghcr | k8s | quay | nvcr | 自定义
-};
-
-const BaseURL = "";
 
 export default {
     /**
@@ -31,53 +20,48 @@ export default {
     async fetch(req, env) {
         const url = new URL(req.url);
 
-        let [segment, pathname] = nextSegment(skipSlash(url.pathname));
+        let [segment, path] = nextSegment(skipSlash(url.pathname));
 
-        if (segment !== "v2")
-            return new Response("Not Found Service", { status: 404 });
+        // 只支持 api v2
+        if (segment !== "v2") return new Response("Not Found Service", { status: 404 });
 
         // 路由决策
-        let [target, baseURL] = routing(url, env);
+        let target = routing(url, env);
+        if (!target) return new Response("Not Found Service", { status: 404 });
 
-        [segment, pathname] = nextSegment(skipSlash(pathname));
+        [segment, path] = nextSegment(skipSlash(path));
         if (segment === "auth") {
-            pathname = skipSlash(pathname);
+            path = skipSlash(path);
 
-            // 从 URL 中获取认证服务
-            if (pathname) pathname = decodeURIComponent(pathname);
-
-            // 查找认证服务
-            if (!pathname) {
+            if (path) {
+                // 从 URL 中获取认证服务
+                target = decodeURIComponent(path);
+            } else {
+                // 通过 api 协商方式，查找认证服务
                 const resp = await forward(`${target}/v2/`);
-                pathname = findAuthService(resp.headers) || "";
+                target = findAuthService(resp.headers);
             }
 
-            if (!pathname)
-                return new Response("Not Found Auth Service", { status: 404 });
+            if (!target) return new Response("Not Found Auth Service", { status: 404 });
 
             // 代理转发授权请求
-            return await forward(`${pathname}${url.search}`, req);
+            return await forward(`${target}${url.search}`, req);
         }
 
         // 代理转发资源请求
-        const resp = await forward(
-            `${target}${url.pathname}${url.search}`,
-            req
-        );
+        const resp = await forward(`${target}${url.pathname}${url.search}`, req);
         let headers = resp.headers;
 
         // 改写授权中心
         if (!yes(env.DisableProxyAuth) && headers.has("WWW-Authenticate")) {
-            if (!baseURL) baseURL = `${url.protocol}//${url.host}`;
-            headers = replaceAuthService(
-                new Headers(headers),
-                `${baseURL}/v2/auth`
-            );
+            headers === resp.headers && (headers = new Headers(headers));
+            const realm = `${url.protocol}//${url.host}/v2/auth`;
+            headers = replaceAuthService(headers, realm);
         }
 
+        // 添加缓存控制
         if (resp.ok) {
-            if (headers === resp.headers) headers = new Headers(headers);
-            // 添加缓存控制
+            headers === resp.headers && (headers = new Headers(headers));
             headers.append("Cache-Control", "max-age=300");
             headers.append("Vary", "Accept");
             headers.append("Vary", "Accept-Encoding");
@@ -86,9 +70,10 @@ export default {
             headers.append("Vary", "User-Agent");
         }
 
+        // 响应头未修改，直接返回
         if (headers === resp.headers) return resp;
 
-        // 标头被修改，重写响应
+        // 响应头被修改，重写响应
         return new Response(resp.body, {
             status: resp.status,
             statusText: resp.statusText,
@@ -101,25 +86,20 @@ export default {
  * 路由决策
  * @param {URL} url
  * @param {Env} env
- * @returns {[string|null, string|null]}
+ * @returns {string|null}
  */
 function routing(url, env) {
-    // 规则路由
-    let target = Routes[url.hostname];
-    if (target) return [Targets[target] || target, null];
+    let target;
 
     // 前缀路由
     if (!yes(env.DisablePrefixRoute)) {
         target = nextSegment(url.hostname, ".")[0];
-        target = Targets[target];
-        if (target) return [target, null];
+        target = Routes[target.toLowerCase()];
+        if (target) return target;
     }
 
-    // 无法路由
-    target = env.Target && Targets[env.Target.toLowerCase()]; // 预设
-    target = target || env.Target; // 自定义
-    target = target || Targets.hub || null; // 默认
-    return [target, env.BaseURL || BaseURL];
+    // 默认配置
+    return env.Target || Routes.hub || null;
 }
 
 /**
@@ -155,19 +135,17 @@ function findAuthService(headers) {
 /**
  * 替换认证服务
  * @param {Headers} headers - 待修改的响应头
- * @param {string} realmBase - realm 基础地址
+ * @param {string} realm - realm 地址
  * @returns 转换后的字符串
  */
-function replaceAuthService(headers, realmBase) {
+function replaceAuthService(headers, realm) {
     let header = headers.get("WWW-Authenticate");
     if (!header) return headers;
 
     const regexp = /(realm=)(?:"([^"]*)"|([^,\s]*))/i;
     header = header.replace(regexp, (_, prefix, quoted, unquoted) => {
-        const realm = encodeURIComponent(quoted || unquoted || "");
-        return realm
-            ? `${prefix}"${realmBase}/${realm}"`
-            : `${prefix}"${realmBase}"`;
+        const path = encodeURIComponent(quoted || unquoted || "");
+        return path ? `${prefix}"${realm}/${path}"` : `${prefix}"${realm}"`;
     });
     headers.set("WWW-Authenticate", header);
     return headers;

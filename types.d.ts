@@ -1,7 +1,6 @@
 declare global {
     type Env = {
         Target?: string;
-        BaseURL?: string;
         DisableProxyAuth?: string;
         DisablePrefixRoute?: string;
     };
