@@ -20,8 +20,13 @@ export default {
     async fetch(req, env) {
         const url = new URL(req.url);
 
-        let target = routing(url, env); // 路由决策
-        let [segment, path] = nextSegment(skipSlash(url.pathname));
+        let target, segment;
+        let path = url.pathname;
+
+        // 路由决策
+        target = routing(url, env);
+
+        [segment, path] = nextSegment(skipSlash(path));
 
         // 只支持 api v2
         if (!target || segment !== "v2") return new Response("Not Found Service", { status: 404 });
