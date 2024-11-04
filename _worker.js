@@ -1,14 +1,13 @@
 /** @type {Table} */
-const Routes = {
+const Routes = Object.setPrototypeOf({
     hub: "https://registry-1.docker.io",
     docker: "https://registry-1.docker.io",
     ghcr: "https://ghcr.io",
     k8s: "https://registry.k8s.io",
     quay: "https://quay.io",
     nvcr: "https://nvcr.io",
-
     // 此处添加域名前缀路由
-};
+}, null);
 
 export default {
     /**
