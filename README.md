@@ -11,8 +11,8 @@
 | 环境变量名         | 可选值         | 默认                         | 说明                                                         |
 | ------------------ | -------------- | ---------------------------- | ------------------------------------------------------------ |
 | Target             | 自定义目标仓库 | https://registry-1.docker.io | 默认镜像仓库<br>路由未命中时使用                             |
-| DisableProxyAuth   | true \| false; | false                        | 禁用授权接口的代理<br>禁用后只会代理资源接口<br>感觉会安全点 |
-| DisablePrefixRoute | true \| false; | false                        | 禁用域名前缀自动路由                                         |
+| DisableProxyAuth   | true \| false  | false                        | 禁用授权接口的代理<br>禁用后只会代理资源接口<br>感觉会安全点 |
+| DisablePrefixRoute | true \| false  | false                        | 禁用域名前缀自动路由                                         |
 
 ### 部署说明
 
