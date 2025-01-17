@@ -18,7 +18,7 @@
 
 1. **Cloudflare Workers** 部署：复制 \_worker.js 代码至 Workers 编译面版，保存并部署
 
-    [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/pierre-primary/cloudflare-workers-image-repo)
+    [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/pierreteam/cloudflare-workers-image-repo)
 
 2. **Cloudflare Pages** 部署：Fork 项目后；创建 Pages 时连接 GitHub 一键部署
 
