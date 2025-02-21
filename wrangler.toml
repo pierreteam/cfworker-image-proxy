@@ -1,0 +1,11 @@
+name = "image-registry-proxy"
+main = "src/index.js"
+
+[vars]
+Target = ""
+DisableProxyAuth = false
+DisablePrefixRoute = false
+
+
+[env.production]
+minify = true

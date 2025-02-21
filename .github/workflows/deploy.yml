@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "src/**"
+      - "wrangler.toml"
   workflow_dispatch:
 
 jobs:
@@ -13,10 +16,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Build & Deploy Worker
         uses: cloudflare/wrangler-action@v3
-        env:
-          Target: ""
-          DisableProxyAuth: false
-          DisablePrefixRoute: false
         with:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
