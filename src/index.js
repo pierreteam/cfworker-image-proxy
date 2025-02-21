@@ -30,7 +30,7 @@ export default {
 		// 授权接口路径
 		const AuthPath = '/v2/auth/'; // Must end with '/'
 
-		// 创建代理请求头
+		// 创建转发请求头
 		const headers = new Headers();
 		copyHeaders(req.headers, headers, 'Content-Type', 'Content-Length');
 		copyHeaders(req.headers, headers, 'Accept', 'Accept-Language', 'Accept-Encoding');
