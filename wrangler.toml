@@ -4,7 +4,7 @@ compatibility_date = "2025-02-21"
 
 minify = true
 
-workers_dev = false
+workers_dev = true
 preview_urls = false
 
 [dev]
