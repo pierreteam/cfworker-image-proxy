@@ -27,6 +27,9 @@ export default {
 		// 规范化路径
 		const path = url.pathname.replace(/\/{2,}/g, '/');
 
+		if (!path || path === '/')
+			return new Response(JSON.stringify(req.cf, null, 4), { status: 200, headers: { 'content-type': 'application/json' } });
+
 		// 授权接口路径
 		const AuthPath = '/v2/auth/'; // Must end with '/'
 
