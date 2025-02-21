@@ -20,11 +20,3 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           environment: production
-          routes: |
-            docker.${{ secrets.DOMAIN }}
-            k8s.${{ secrets.DOMAIN }}
-            ghcr.${{ secrets.DOMAIN }}
-            gcr.${{ secrets.DOMAIN }}
-            quay.${{ secrets.DOMAIN }}
-            nvcr.${{ secrets.DOMAIN }}
-            ecr.${{ secrets.DOMAIN }}
