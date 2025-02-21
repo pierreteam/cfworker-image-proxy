@@ -2,12 +2,10 @@ name = "image-registry-proxy"
 main = "src/index.js"
 compatibility_date = "2025-02-21"
 
-workers_dev = true
-
-[env.production]
+workers_dev = false
 minify = true
 
-[env.production.vars]
+[vars]
 Target = "https://registry-1.docker.io"
 DisableProxyAuth = false
 DisablePrefixRoute = false
