@@ -2,96 +2,109 @@ const DefaultTarget = 'https://registry-1.docker.io';
 
 /** @type {Table} */
 const Routes = {
-    docker: DefaultTarget,
-    k8s: 'https://registry.k8s.io',
-    gcr: 'https://gcr.io',
-    ghcr: 'https://ghcr.io',
-    quay: 'https://quay.io',
-    nvcr: 'https://nvcr.io',
-    ecr: 'https://public.ecr.aws',
-    // 此处添加域名前缀路由
+	docker: 'https://registry-1.docker.io',
+	k8s: 'https://registry.k8s.io',
+	gcr: 'https://gcr.io',
+	ghcr: 'https://ghcr.io',
+	quay: 'https://quay.io',
+	nvcr: 'https://nvcr.io',
+	ecr: 'https://public.ecr.aws',
+	// 此处添加域名前缀路由
 };
 
 export default {
-    /**
-     * 应用入口
-     * @param {Request} req
-     * @param {Env} env
-     * @returns
-     */
-    async fetch(req, env) {
-        const url = new URL(req.url);
+	/**
+	 * 应用入口
+	 * @param {Request} req
+	 * @param {Env} env
+	 * @returns
+	 */
+	async fetch(req, env) {
+		const url = new URL(req.url);
 
-        console.log(url.toString());
-        console.log(req.headers);
+		// 路由决策
+		let target = routing(url, env);
 
-        let target, segment;
-        let path = url.pathname;
+		// 规范化路径
+		let path = url.pathname.replace(/\/{2,}/g, '/');
 
-        // 路由决策
-        target = routing(url, env);
+		// 创建代理请求头
+		const headers = new Headers();
+		copyHeaders(req.headers, headers, 'Accept', 'Accept-Language', 'Accept-Encoding', 'Authorization', 'User-Agent');
 
-        [segment, path] = nextSegment(skipSlash(path));
+		// 授权接口路径
+		const AuthPath = '/v2/auth/'; // Must end with '/'
 
-        // 只支持 api v2
-        if (!target || segment !== 'v2') return new Response('Not Found Service', { status: 404 });
+		// 处理授权请求
+		if (path.startsWith(AuthPath)) {
+			// 从 URL 中获取认证服务
+			target = decodeURIComponent(path.slice(AuthPath.length));
 
-        [segment, path] = nextSegment(skipSlash(path));
+			if (!target) return new Response('Not Found Auth Service', { status: 404 });
 
-        // 处理授权请求
-        if (segment === 'auth') {
-            path = skipSlash(path);
+			// 转发授权请求
+			return await fetch(`${target}${url.search}`, {
+				redirect: 'follow',
+				headers: headers,
+			});
+		}
 
-            if (path) {
-                // 从 URL 中获取认证服务
-                target = decodeURIComponent(path);
-            } else {
-                // 通过 api 协商方式，查找认证服务
-                const resp = await forward(`${target}/v2/`);
-                target = findAuthService(resp.headers);
-            }
+		// 转发资源请求
+		const resp = await fetch(`${target}${url.pathname}${url.search}`, {
+			redirect: 'manual', // 禁用自动重定向，需要特殊处理
+			headers: headers,
+			method: req.method,
+			body: req.body,
+		});
 
-            console.log('target', target);
+		// 处理授权响应
+		if (!yes(env.DisableProxyAuth) && resp.status === 401) {
+			const realm = `${url.protocol}//${url.host}${AuthPath}`;
 
-            if (!target) return new Response('Not Found Auth Service', { status: 404 });
+			const headers = new Headers(resp.headers);
+			replaceAuthService(headers, realm);
 
-            // 代理转发授权请求
-            return await forward(`${target}${url.search}`, req);
-        }
+			return new Response(resp.body, {
+				headers: headers,
+				status: resp.status,
+				statusText: resp.statusText,
+			});
+		}
 
-        // 代理转发资源请求
-        const resp = await forward(`${target}${url.pathname}${url.search}`, req);
-        let headers = resp.headers;
+		// 处理重定向
+		if (resp.headers.has('Location')) {
+			const location = resp.headers.get('Location');
+			if (!location) return resp;
 
-        // 改写授权中心
-        if (!yes(env.DisableProxyAuth) && headers.has('WWW-Authenticate')) {
-            headers === resp.headers && (headers = new Headers(headers));
-            const realm = `${url.protocol}//${url.host}/v2/auth`;
-            headers = replaceAuthService(headers, realm);
-        }
+			// fix s3 error: "InvalidRequest: Missing x-amz-content-sha256"
+			headers.delete('Authorization');
 
-        // 添加缓存控制
-        if (resp.ok) {
-            headers === resp.headers && (headers = new Headers(headers));
-            headers.append('Cache-Control', 'max-age=300');
-            headers.append('Vary', 'Accept');
-            headers.append('Vary', 'Accept-Encoding');
-            headers.append('Vary', 'Accept-Language');
-            headers.append('Vary', 'Authorization');
-            headers.append('Vary', 'User-Agent');
-        }
+			return fetch(location, {
+				redirect: 'follow',
+				headers: headers,
+				method: req.method,
+				body: req.body,
+			});
+		}
 
-        // 响应头未修改，直接返回
-        if (headers === resp.headers) return resp;
-
-        // 响应头被修改，重写响应
-        return new Response(resp.body, {
-            status: resp.status,
-            statusText: resp.statusText,
-            headers,
-        });
-    },
+		return resp;
+	},
 };
+
+/**
+ * 复制响应头
+ * @param {Headers} src
+ * @param {Headers} dst
+ * @param {...string} keys
+ * @returns
+ */
+function copyHeaders(src, dst, ...keys) {
+	for (const key of keys) {
+		if (src.has(key)) {
+			dst.set(key, src.get(key) || '');
+		}
+	}
+}
 
 /**
  * 路由决策
@@ -100,68 +113,34 @@ export default {
  * @returns {string|null}
  */
 function routing(url, env) {
-    let target;
+	let target;
 
-    // 前缀路由
-    if (!yes(env.DisablePrefixRoute)) {
-        target = nextSegment(url.hostname, '.')[0];
-        target = Routes[target.toLowerCase()];
-        if (target) return target;
-    }
+	// 前缀路由
+	if (!yes(env.DisablePrefixRoute)) {
+		target = url.hostname.slice(0, url.hostname.indexOf('.'));
+		target = Routes[target.toLowerCase()];
+		if (target) return target;
+	}
 
-    // 默认配置
-    return env.Target || DefaultTarget || null;
-}
-
-/**
- * 代理转发
- * @param {string|URL} input
- * @param {Request|null} req
- * @returns
- */
-async function forward(input, req = null) {
-    if (!req) return await fetch(input, { redirect: 'follow' });
-    return await fetch(input, {
-        headers: req.headers,
-        method: req.method,
-        body: req.body,
-        redirect: 'follow',
-    });
-}
-
-/**
- * 获取认证服务
- * @param {Headers} headers - 响应头
- * @returns
- */
-function findAuthService(headers) {
-    const header = headers.get('WWW-Authenticate');
-    if (!header) return null;
-
-    console.log("findAuthService", header);
-
-    const regexp = /realm=(?:"([^"]*)"|([^,\s]*))/i;
-    const match = header.match(regexp);
-    return (match && (match[1] || match[2])) || null;
+	// 默认配置
+	return env.Target || DefaultTarget || null;
 }
 
 /**
  * 替换认证服务
  * @param {Headers} headers - 待修改的响应头
  * @param {string} realm - realm 地址
- * @returns 转换后的字符串
  */
 function replaceAuthService(headers, realm) {
-    let header = headers.get('WWW-Authenticate');
-    if (!header) return headers;
-
-    const regexp = /(realm=)(?:"([^"]*)"|([^,\s]*))/i;
-    header = header.replace(regexp, (_, prefix, quoted, unquoted) => {
-        const path = encodeURIComponent(quoted || unquoted || '');
-        return path ? `${prefix}"${realm}/${path}"` : `${prefix}"${realm}"`;
-    });
-    headers.set('WWW-Authenticate', header);
-    return headers;
+	let header = headers.get('WWW-Authenticate');
+	if (header) {
+		// realm="auth_api" => realm="custom_auth_api/auth_api"
+		header = header.replace(/(realm=)"([^"]*)"/i, (_, prefix, value) => {
+			const separator = realm.endsWith('/') ? '' : '/';
+			return `${prefix}"${realm}${separator}${encodeURIComponent(value)}"`;
+		});
+		headers.set('WWW-Authenticate', header);
+	}
 }
 
 /*********************************************************************/
@@ -172,30 +151,7 @@ function replaceAuthService(headers, realm) {
  * @returns
  */
 function yes(value) {
-    if (!value) return false;
-    const val = value.toLowerCase();
-    return !!val && val !== 'no' && val !== 'false' && val !== '0';
-}
-
-// 路径解析
-/**
- * 跳过前缀路径分隔符
- * @param {string} str - 源字符串
- * @returns 跳过前缀路径分隔符后的字符串
- */
-function skipSlash(str, char = '/') {
-    let i = 0;
-    for (; i < str.length && str[i] === char; i++);
-    return str.slice(i);
-}
-
-/**
- * 获取下一段路径
- * @param {string} str - 源字符串
- * @returns {[string, string]} [首段路径, 剩余的字符串]
- */
-function nextSegment(str, char = '/') {
-    let i = 0;
-    for (; i < str.length && str[i] !== char; i++);
-    return [str.slice(0, i), str.slice(i)];
+	if (!value) return false;
+	const val = value.toLowerCase();
+	return !!val && val !== 'no' && val !== 'false' && val !== '0';
 }

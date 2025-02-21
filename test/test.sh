@@ -1,21 +1,21 @@
 #!/bin/bash
 # shellcheck disable=all
 
-# Host=https://registry-1.docker.io && Image=library/nginx && Target=docker
+Host=https://registry-1.docker.io && Image=library/nginx && Target=docker
 # Host=https://registry.k8s.io && Image=pause && Version=3.9 && Target=k8s
 # Host=https://quay.io && Image=minio/minio && Target=quay
 # Host=https://ghcr.io && Image=open-webui/open-webui && Version=v0.5.9 && Target=ghcr
-Host=https://gcr.io && Image=google-containers/busybox && Target=gcr
+# Host=https://gcr.io && Image=google-containers/busybox && Target=gcr
 # Host=https://nvcr.io && Image=nvidia/cuda && Target=nvcr
 # Host=https://public.ecr.aws && Image=lambda/python && Version=3.8 && Target=ecr
 
-# Host=http://$Target.pierre.test:8787
+Host=http://$Target.pierre.test:8787
 
 echo "==============================================================="
 url="$Host/v2/"
 echo "请求: $url"
 echo "---------------------------------------------------------------"
-response=$(curl -s -i "$url")
+response=$(curl -s -i -L "$url")
 echo "$response" | head -n 20 && echo "..."
 echo "---------------------------------------------------------------"
 response=$(echo "$response" | sed -n '/^www-authenticate: Bearer/I s/^www-authenticate: Bearer //Ip')
@@ -37,7 +37,7 @@ if [ -n "$realm" ]; then
     url="${realm}?_a=1${service:+"&service=${service}"}${scope:+"&scope=${scope}"}"
     echo "请求: $url"
     echo "---------------------------------------------------------------"
-    response=$(curl -s -i "$url" -H "Accept: application/json")
+    response=$(curl -s -i -L "$url" -H "Accept: application/json" -H "Accept-Encoding: identity")
     echo "$response"
     echo "==============================================================="
     echo
