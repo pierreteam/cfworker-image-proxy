@@ -22,7 +22,13 @@
 
 2. **Cloudflare Pages** 部署：Fork 项目后；创建 Pages 时连接 GitHub 一键部署
 
-3. **配置参数**: 如果特殊要求可跳过；复制项目中 vars.tmpl 的内容，粘贴到 Cloudflare 环境变量编辑页，修改为自己的值，保存并重新部署
+3. **配置参数**: 如果特殊要求可跳过；复制下列内容，粘贴到 Cloudflare 环境变量编辑页，修改为自己的值，保存并重新部署
+
+    ```ini
+    Target=""
+    DisableProxyAuth=false
+    DisablePrefixRoute=false
+    ```
 
 4. **绑定多个域名**: (1) 如果路由需求的，请在 Cloudflare 中添加自定义域名, 并修改 \_worker.js 中的 Routes 配置；
    (2) 要使用域名前缀自动路由的，域名前缀需要遵循预设名，或者修改 \_worker.js 中的 Targets 配置，添加加预设。

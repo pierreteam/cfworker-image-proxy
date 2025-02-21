@@ -1,13 +1,16 @@
+const DefaultTarget = 'https://registry-1.docker.io';
+
 /** @type {Table} */
-const Routes = Object.setPrototypeOf({
-    hub: "https://registry-1.docker.io",
-    docker: "https://registry-1.docker.io",
-    ghcr: "https://ghcr.io",
-    k8s: "https://registry.k8s.io",
-    quay: "https://quay.io",
-    nvcr: "https://nvcr.io",
+const Routes = {
+    docker: DefaultTarget,
+    k8s: 'https://registry.k8s.io',
+    gcr: 'https://gcr.io',
+    ghcr: 'https://ghcr.io',
+    quay: 'https://quay.io',
+    nvcr: 'https://nvcr.io',
+    ecr: 'https://public.ecr.aws',
     // 此处添加域名前缀路由
-}, null);
+};
 
 export default {
     /**
@@ -19,6 +22,9 @@ export default {
     async fetch(req, env) {
         const url = new URL(req.url);
 
+        console.log(url.toString());
+        console.log(req.headers);
+
         let target, segment;
         let path = url.pathname;
 
@@ -28,12 +34,12 @@ export default {
         [segment, path] = nextSegment(skipSlash(path));
 
         // 只支持 api v2
-        if (!target || segment !== "v2") return new Response("Not Found Service", { status: 404 });
+        if (!target || segment !== 'v2') return new Response('Not Found Service', { status: 404 });
 
         [segment, path] = nextSegment(skipSlash(path));
 
         // 处理授权请求
-        if (segment === "auth") {
+        if (segment === 'auth') {
             path = skipSlash(path);
 
             if (path) {
@@ -45,7 +51,9 @@ export default {
                 target = findAuthService(resp.headers);
             }
 
-            if (!target) return new Response("Not Found Auth Service", { status: 404 });
+            console.log('target', target);
+
+            if (!target) return new Response('Not Found Auth Service', { status: 404 });
 
             // 代理转发授权请求
             return await forward(`${target}${url.search}`, req);
@@ -56,7 +64,7 @@ export default {
         let headers = resp.headers;
 
         // 改写授权中心
-        if (!yes(env.DisableProxyAuth) && headers.has("WWW-Authenticate")) {
+        if (!yes(env.DisableProxyAuth) && headers.has('WWW-Authenticate')) {
             headers === resp.headers && (headers = new Headers(headers));
             const realm = `${url.protocol}//${url.host}/v2/auth`;
             headers = replaceAuthService(headers, realm);
@@ -65,12 +73,12 @@ export default {
         // 添加缓存控制
         if (resp.ok) {
             headers === resp.headers && (headers = new Headers(headers));
-            headers.append("Cache-Control", "max-age=300");
-            headers.append("Vary", "Accept");
-            headers.append("Vary", "Accept-Encoding");
-            headers.append("Vary", "Accept-Language");
-            headers.append("Vary", "Authorization");
-            headers.append("Vary", "User-Agent");
+            headers.append('Cache-Control', 'max-age=300');
+            headers.append('Vary', 'Accept');
+            headers.append('Vary', 'Accept-Encoding');
+            headers.append('Vary', 'Accept-Language');
+            headers.append('Vary', 'Authorization');
+            headers.append('Vary', 'User-Agent');
         }
 
         // 响应头未修改，直接返回
@@ -96,13 +104,13 @@ function routing(url, env) {
 
     // 前缀路由
     if (!yes(env.DisablePrefixRoute)) {
-        target = nextSegment(url.hostname, ".")[0];
+        target = nextSegment(url.hostname, '.')[0];
         target = Routes[target.toLowerCase()];
         if (target) return target;
     }
 
     // 默认配置
-    return env.Target || Routes.hub || null;
+    return env.Target || DefaultTarget || null;
 }
 
 /**
@@ -112,12 +120,12 @@ function routing(url, env) {
  * @returns
  */
 async function forward(input, req = null) {
-    if (!req) return await fetch(input, { redirect: "follow" });
+    if (!req) return await fetch(input, { redirect: 'follow' });
     return await fetch(input, {
         headers: req.headers,
         method: req.method,
         body: req.body,
-        redirect: "follow",
+        redirect: 'follow',
     });
 }
 
@@ -127,8 +135,10 @@ async function forward(input, req = null) {
  * @returns
  */
 function findAuthService(headers) {
-    const header = headers.get("WWW-Authenticate");
+    const header = headers.get('WWW-Authenticate');
     if (!header) return null;
+
+    console.log("findAuthService", header);
 
     const regexp = /realm=(?:"([^"]*)"|([^,\s]*))/i;
     const match = header.match(regexp);
@@ -142,15 +152,15 @@ function findAuthService(headers) {
  * @returns 转换后的字符串
  */
 function replaceAuthService(headers, realm) {
-    let header = headers.get("WWW-Authenticate");
+    let header = headers.get('WWW-Authenticate');
     if (!header) return headers;
 
     const regexp = /(realm=)(?:"([^"]*)"|([^,\s]*))/i;
     header = header.replace(regexp, (_, prefix, quoted, unquoted) => {
-        const path = encodeURIComponent(quoted || unquoted || "");
+        const path = encodeURIComponent(quoted || unquoted || '');
         return path ? `${prefix}"${realm}/${path}"` : `${prefix}"${realm}"`;
     });
-    headers.set("WWW-Authenticate", header);
+    headers.set('WWW-Authenticate', header);
     return headers;
 }
 
@@ -164,7 +174,7 @@ function replaceAuthService(headers, realm) {
 function yes(value) {
     if (!value) return false;
     const val = value.toLowerCase();
-    return !!val && val !== "no" && val !== "false" && val !== "0";
+    return !!val && val !== 'no' && val !== 'false' && val !== '0';
 }
 
 // 路径解析
@@ -173,7 +183,7 @@ function yes(value) {
  * @param {string} str - 源字符串
  * @returns 跳过前缀路径分隔符后的字符串
  */
-function skipSlash(str, char = "/") {
+function skipSlash(str, char = '/') {
     let i = 0;
     for (; i < str.length && str[i] === char; i++);
     return str.slice(i);
@@ -184,7 +194,7 @@ function skipSlash(str, char = "/") {
  * @param {string} str - 源字符串
  * @returns {[string, string]} [首段路径, 剩余的字符串]
  */
-function nextSegment(str, char = "/") {
+function nextSegment(str, char = '/') {
     let i = 0;
     for (; i < str.length && str[i] !== char; i++);
     return [str.slice(0, i), str.slice(i)];
