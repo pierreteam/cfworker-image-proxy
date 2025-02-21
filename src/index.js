@@ -9,7 +9,6 @@ const Routes = {
 	quay: 'https://quay.io',
 	nvcr: 'https://nvcr.io',
 	ecr: 'https://public.ecr.aws',
-	// 此处添加域名前缀路由
 };
 
 export default {
@@ -23,31 +22,40 @@ export default {
 		const url = new URL(req.url);
 
 		// 路由决策
-		let target = routing(url, env);
+		const target = routing(url, env);
 
 		// 规范化路径
-		let path = url.pathname.replace(/\/{2,}/g, '/');
-
-		// 创建代理请求头
-		const headers = new Headers();
-		copyHeaders(req.headers, headers, 'Accept', 'Accept-Language', 'Accept-Encoding', 'Authorization', 'User-Agent');
+		const path = url.pathname.replace(/\/{2,}/g, '/');
 
 		// 授权接口路径
 		const AuthPath = '/v2/auth/'; // Must end with '/'
 
+		// 创建代理请求头
+		const headers = new Headers();
+		copyHeaders(req.headers, headers, 'Content-Type', 'Content-Length');
+		copyHeaders(req.headers, headers, 'Accept', 'Accept-Language', 'Accept-Encoding');
+		copyHeaders(req.headers, headers, 'Authorization', 'User-Agent');
+
 		// 处理授权请求
 		if (path.startsWith(AuthPath)) {
 			// 从 URL 中获取认证服务
-			target = decodeURIComponent(path.slice(AuthPath.length));
+			const realm = decodeURIComponent(path.slice(AuthPath.length));
 
-			if (!target) return new Response('Not Found Auth Service', { status: 404 });
+			if (!realm) return new Response('Not Found Auth Service', { status: 404 });
 
 			// 转发授权请求
-			return await fetch(`${target}${url.search}`, {
+			return await fetch(`${realm}${url.search}`, {
 				redirect: 'follow',
 				headers: headers,
+				method: req.method,
+				body: req.body,
 			});
 		}
+
+		// 处理资源请求
+		copyHeaders(req.headers, headers, 'Range', 'If-Range'); // 断点续传控制
+		copyHeaders(req.headers, headers, 'If-None-Match', 'If-Modified-Since'); // 协商缓存控制
+		copyHeaders(req.headers, headers, 'Cache-Control'); // 强制缓存控制
 
 		// 转发资源请求
 		const resp = await fetch(`${target}${url.pathname}${url.search}`, {
@@ -58,7 +66,7 @@ export default {
 		});
 
 		// 处理授权响应
-		if (!yes(env.DisableProxyAuth) && resp.status === 401) {
+		if (resp.status === 401 && !yes(env.DisableProxyAuth)) {
 			const realm = `${url.protocol}//${url.host}${AuthPath}`;
 
 			const headers = new Headers(resp.headers);
