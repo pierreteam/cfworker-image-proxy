@@ -1,3 +1,4 @@
+name: Deploy Worker
 on:
   push:
     branches:
@@ -8,7 +9,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Deploy
+      - name: Build & Deploy Worker
         uses: cloudflare/wrangler-action@v3
         env:
           Target: ""
