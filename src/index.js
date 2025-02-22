@@ -19,10 +19,12 @@ const Routes = {
  * @param {string|null} value
  * @returns
  */
-function yes(value) {
-    if (!value) return false;
-    const val = value.toLowerCase();
-    return !!val && val !== 'no' && val !== 'false' && val !== '0';
+function yes(value, defaultValue = false) {
+    if (!value) return defaultValue;
+    const normalized = value.toLowerCase();
+    if (['true', 'yes', 'y', 'on', '1'].includes(normalized)) return true;
+    if (['false', 'no', 'n', 'off', '0'].includes(normalized)) return false;
+    return defaultValue;
 }
 
 /**
