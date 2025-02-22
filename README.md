@@ -4,13 +4,17 @@
 -   支持域名路由，单点代理多个镜像仓库
 -   支持域名前缀自动路由；预设前缀：`docker` `k8s` `gcr` `ghcr` `quay` `nvcr` `ecr`
 
-## 部署
+## 部署方式
 
--   **Pages 部署**：`Fork 项目` --> `创建 Pages` --> `连接 GitHub` --> `选择分支` --> `保存并部署`
+-   **部署 Pages**：`Fork 项目` --> `创建 Pages` --> `连接 GitHub` --> `选择分支` --> `保存并部署`
 
--   **Workers 部署**：`创建 Workers` --> `复制` [\_worker.js](https://github.com/pierreteam/cfworker-image-proxy/blob/main/_worker.js) --> `保存并部署`
+-   **部署 Workers**：`创建 Workers` --> `复制` [\_worker.js](https://github.com/pierreteam/cfworker-image-proxy/blob/main/_worker.js) --> `保存并部署`
 
--   **Workers 快捷部署**
+-   **部署 Workers (Wrangler CLI)**: `Clone 项目` --> 执行命令 `npm install`，安装依赖 --> 执行命令 `npm run deploy`，部署
+
+-   **部署 Workers (GitHub Action)**：`Fork 项目` --> `配置 secrets` --> `运行 GitHub Action`
+
+-   **部署 Workers (GitHub Action) 快捷部署**：
 
     [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/pierreteam/cfworker-image-proxy)
 
