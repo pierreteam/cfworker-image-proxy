@@ -6,13 +6,13 @@
 
 ## 部署
 
--   **Pages 部署**：`Fork 项目` -> `创建 Pages` -> `连接 GitHub` -> `选择分支` -> `保存并部署`
+-   **Pages 部署**：`Fork 项目` --> `创建 Pages` --> `连接 GitHub` --> `选择分支` --> `保存并部署`
 
--   **Workers 部署**：`创建 Workers` -> `复制` [\_worker.js](https://github.com/pierreteam/cfworker-image-proxy/blob/main/_worker.js) -> `保存并部署`
+-   **Workers 部署**：`创建 Workers` --> `复制` [\_worker.js](https://github.com/pierreteam/cfworker-image-proxy/blob/main/_worker.js) --> `保存并部署`
 
 -   **Workers 快捷部署**
 
-    [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/pierreteam/cloudflare-workers-image-repo)
+    [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/pierreteam/cfworker-image-proxy)
 
 ## 参数配置
 
