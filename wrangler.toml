@@ -1,5 +1,5 @@
 name = "image-proxy"
-main = "src/index.js"
+main = "_worker.js"
 compatibility_date = "2025-02-21"
 
 minify = true

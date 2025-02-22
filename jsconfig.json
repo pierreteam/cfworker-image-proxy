@@ -6,6 +6,6 @@
         "strict": true,
         "allowSyntheticDefaultImports": true
     },
-    "include": ["src/**/*.js", "types.d.ts"],
+    "include": ["**/*.js", "**/*.d.ts"],
     "exclude": ["node_modules"]
 }
