@@ -2,7 +2,7 @@
 
 const DefaultTarget = 'https://registry-1.docker.io';
 
-/** @type {Table} */
+/** @type {Record<string, string>} */
 const Routes = {
     docker: 'https://registry-1.docker.io',
     k8s: 'https://registry.k8s.io',
@@ -16,7 +16,7 @@ const Routes = {
 // --- 辅助函数 ---
 
 /**
- * @param {string|undefined} value
+ * @param {string|null} value
  * @returns
  */
 function yes(value) {
@@ -52,7 +52,7 @@ function routing(url, env) {
     let target;
 
     // 前缀路由
-    if (!yes(env.DisablePrefixRoute)) {
+    if (url.hostname && !yes(env.DisablePrefixRoute || null)) {
         target = url.hostname.slice(0, url.hostname.indexOf('.'));
         target = Routes[target.toLowerCase()];
         if (target) return target;
@@ -153,7 +153,7 @@ export default {
         });
 
         // 处理授权响应
-        if (resp.status === 401 && !yes(env.DisableProxyAuth)) {
+        if (resp.status === 401 && !yes(env.DisableProxyAuth || null)) {
             const realm = `${url.protocol}//${url.host}${AuthPath}`;
 
             const headers = new Headers(resp.headers);

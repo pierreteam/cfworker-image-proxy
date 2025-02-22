@@ -4,8 +4,6 @@ declare global {
         DisableProxyAuth?: string;
         DisablePrefixRoute?: string;
     };
-
-    type Table = Record<string, string | undefined | null>;
 }
 
 export {};
