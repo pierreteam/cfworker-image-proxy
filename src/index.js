@@ -107,18 +107,6 @@ export default {
         // 授权接口路径
         const AuthPath = '/v2/auth/'; // Must end with '/'
 
-        // 创建转发请求头
-        const headers = new Headers();
-
-        // 保留通用请求头
-        // prettier-ignore
-        // biome-ignore format:
-        copyHeaders(req.headers, headers,
-            'Content-Type', 'Content-Length',
-            'Accept', 'Accept-Language', 'Accept-Encoding',
-            'Authorization', 'User-Agent',
-        );
-
         // 处理授权请求
         if (path.startsWith(AuthPath)) {
             // 从 URL 中获取认证服务
@@ -129,27 +117,16 @@ export default {
             // 转发授权请求
             return await fetch(`${realm}${url.search}`, {
                 redirect: 'follow',
-                headers: headers,
+                headers: req.headers,
                 method: req.method,
                 body: req.body,
             });
         }
 
-        // 处理资源请求
-
-        // 保留资源请求头
-        // prettier-ignore
-        // biome-ignore format:
-        copyHeaders(req.headers, headers,
-            'Range', 'If-Range',                    // 断点续传控制
-            'If-None-Match', 'If-Modified-Since',   // 协商缓存控制
-            'Cache-Control',                        // 强制缓存控制
-        )
-
         // 转发资源请求
         const resp = await fetch(`${target}${url.pathname}${url.search}`, {
             redirect: 'manual', // 禁用自动重定向，需要特殊处理
-            headers: headers,
+            headers: req.headers,
             method: req.method,
             body: req.body,
         });
@@ -174,6 +151,7 @@ export default {
             if (!location) return resp;
 
             // fix s3 error: "InvalidRequest: Missing x-amz-content-sha256"
+            const headers = new Headers(req.headers);
             headers.delete('Authorization');
 
             return fetch(location, {
