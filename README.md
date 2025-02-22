@@ -6,9 +6,7 @@
 
 ## 部署方式
 
--   **部署 Pages**：`Fork 项目` --> `创建 Pages` --> `连接 GitHub` --> `选择分支` --> `保存并部署`
-
--   **部署 Workers**：`创建 Workers` --> `复制` [\_worker.js](https://github.com/pierreteam/cfworker-image-proxy/blob/main/_worker.js) --> `保存并部署`
+-   **部署 Workers**：`创建 Workers` --> `复制` [src/index.js](https://github.com/pierreteam/cfworker-image-proxy/blob/main/src/index.js) --> `粘贴到 _worker.js` --> `保存并部署`
 
 -   **部署 Workers (Wrangler CLI)**: `Clone 项目` --> 执行命令 `npm install`，安装依赖 --> 执行命令 `npm run deploy`，部署
 

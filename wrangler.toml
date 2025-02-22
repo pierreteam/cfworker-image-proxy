@@ -1,11 +1,12 @@
 name = "image-proxy"
-main = "_worker.js"
 compatibility_date = "2025-02-21"
 
-minify = true
+main = "src/index.js"
 
 workers_dev = true
 preview_urls = false
+minify = true
+upload_source_maps = false
 
 [dev]
 ip = "0.0.0.0"
